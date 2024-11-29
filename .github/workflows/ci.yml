@@ -1,0 +1,59 @@
+name: ci
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create SonarCloud Project
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ github.event.repository.name }}
+        run: |
+          curl -X POST "https://sonarcloud.io/api/projects/create" \
+          -H "Authorization: Bearer $SONAR_TOKEN" \
+          -F "organization=tigra-degi" \
+          -F "project=$SONAR_PROJECT_KEY" \
+          -F "name=$SONAR_PROJECT_KEY"
+
+      - name: Rename SonarCloud branch
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ github.event.repository.name }}
+        run: |
+          curl -X POST "https://sonarcloud.io/api/project_branches/rename" \
+          -H "Authorization: Bearer $SONAR_TOKEN" \
+          -F "project=$SONAR_PROJECT_KEY" \
+          -F "name=main"
+          
+      - name: Set SonarCloud leak period
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ github.event.repository.name }}
+        run: |
+          curl -X POST "https://sonarcloud.io/api/settings/set" \
+          -H "Authorization: Bearer $SONAR_TOKEN" \
+          -F "component=$SONAR_PROJECT_KEY" \
+          -F "key=sonar.leak.period" \
+          -F "value=previous_version"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+                    
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        
+      - name: Build with Gradle
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ github.event.repository.name }}
+        run: gradle build sonar -Dsonar.projectKey=$SONAR_PROJECT_KEY -Dsonar.organization=tigra-degi -Dsonar.branch.name=main -Dsonar.host.url=https://sonarcloud.io
+        
